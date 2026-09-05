@@ -10,6 +10,7 @@ import IncidentReplay from './IncidentReplay';
 import RiskExplanation from './RiskExplanation';
 import RiskOverlay from './RiskOverlay';
 import ChatPanel from './ChatPanel';
+import ConnectionStatus from './ConnectionStatus';
 
 const MOCK_VIDEO_DURATION_SECONDS = 2400;
 
@@ -40,11 +41,14 @@ export default function Dashboard() {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
         <h1 className="text-base font-semibold text-text-primary">Warehouse AI Dashboard</h1>
-        {usingMockData && (
-          <span className="rounded-badge border border-risk-medium px-2 py-0.5 text-xs text-risk-medium">
-            Backend unreachable — showing sample data
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {usingMockData && (
+            <span className="rounded-badge border border-risk-medium px-2 py-0.5 text-xs text-risk-medium">
+              Backend unreachable — showing sample data
+            </span>
+          )}
+          <ConnectionStatus />
+        </div>
       </header>
 
       <Filters bays={bays} filters={filters} onChange={setFilters} />
