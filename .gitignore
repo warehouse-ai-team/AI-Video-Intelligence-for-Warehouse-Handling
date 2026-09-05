@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Computer vision generated outputs
+computer_vision/outputs/
+computer_vision/data/clips/
+computer_vision/data/dataset/
+
+# Model weights / checkpoints
+computer_vision/weights/
+computer_vision/models/
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# Large datasets
+*.zip
+*.tar
+*.tar.gz
+
+# Generated files
+*.log
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
