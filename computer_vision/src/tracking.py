@@ -22,34 +22,67 @@ class PersonByteTracker:
         self.conf_threshold = conf_threshold
         self.device = None if device == "auto" else device
 
-    def track_video(self, video_path, tracker_cfg="bytetrack.yaml"):
+    def track_video(self, video_path, tracker_cfg="bytetrack.yaml", content_roi=None, frame_skip=1):
         """
         Yields (frame_idx, frame, list of dict) where each dict is:
         {track_id, cls, conf, x1, y1, x2, y2, cx, cy, keypoints}
+
+        If content_roi=(x1,y1,x2,y2) is given, each frame is cropped to that
+        region BEFORE being handed to the tracker (persist=True keeps ID
+        state across calls). This matters a lot for split-screen recordings
+        where two independent camera feeds are stacked in one video frame -
+        tracking across both as if they were one continuous scene causes ID
+        churn. Detected boxes are shifted back to full-frame coordinates
+        before being returned, so downstream code doesn't need to know
+        cropping happened.
         """
-        results = self.model.track(
-            source=video_path, tracker=tracker_cfg, classes=[0],
-            conf=self.conf_threshold, device=self.device,
-            verbose=False, stream=True, persist=True,
-        )
-        for frame_idx, r in enumerate(results):
-            frame = r.orig_img
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        frame_idx = 0
+        rx1, ry1 = (content_roi[0], content_roi[1]) if content_roi else (0, 0)
+
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if frame_idx % frame_skip != 0:
+                frame_idx += 1
+                continue
+
+            proc_frame = frame
+            if content_roi:
+                x1, y1, x2, y2 = content_roi
+                proc_frame = frame[y1:y2, x1:x2]
+
+            r = self.model.track(
+                proc_frame, tracker=tracker_cfg, classes=[0],
+                conf=self.conf_threshold, device=self.device,
+                verbose=False, persist=True,
+            )[0]
+
             out = []
             ids = r.boxes.id
             kpts_all = r.keypoints.xy.cpu().numpy() if r.keypoints is not None else None
             if ids is not None:
                 for i, box in enumerate(r.boxes):
-                    x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
+                    bx1, by1, bx2, by2 = [float(v) for v in box.xyxy[0]]
+                    # shift back to full-frame coords
+                    x1f, y1f, x2f, y2f = bx1 + rx1, by1 + ry1, bx2 + rx1, by2 + ry1
                     conf = float(box.conf[0])
                     track_id = int(ids[i])
-                    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-                    kpts = kpts_all[i].tolist() if kpts_all is not None and i < len(kpts_all) else None
+                    cx, cy = (x1f + x2f) / 2, (y1f + y2f) / 2
+                    kpts = None
+                    if kpts_all is not None and i < len(kpts_all):
+                        kpts = [[kx + rx1, ky + ry1] for kx, ky in kpts_all[i].tolist()]
                     out.append({
                         "track_id": track_id, "cls": "person", "conf": conf,
-                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        "x1": x1f, "y1": y1f, "x2": x2f, "y2": y2f,
                         "cx": cx, "cy": cy, "keypoints": kpts,
                     })
             yield frame_idx, frame, out
+            frame_idx += 1
+
+        cap.release()
 
 
 class SimpleIOUTracker:

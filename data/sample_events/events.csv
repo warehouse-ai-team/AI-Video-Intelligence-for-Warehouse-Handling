@@ -1,0 +1,23 @@
+event_id,video_id,start_time,end_time,behaviour,risk_level,confidence,evidence,reason,damage_status
+EVT_V004_001,V004,0.73,3.47,throwing,HIGH,0.6,outputs/clips/EVT_V004_001.mp4,High-speed product motion while detached from nearest person (2.73s),potential_damage_risk
+EVT_V004_002,V004,4.17,5.97,throwing,HIGH,0.6,outputs/clips/EVT_V004_002.mp4,High-speed product motion while detached from nearest person (1.80s),potential_damage_risk
+EVT_V004_003,V004,6.33,6.87,throwing,HIGH,0.6,outputs/clips/EVT_V004_003.mp4,High-speed product motion while detached from nearest person (0.53s),potential_damage_risk
+EVT_V006_001,V006,1.47,1.73,throwing,HIGH,0.6,outputs/clips/EVT_V006_001.mp4,High-speed product motion while detached from nearest person (0.27s),potential_damage_risk
+EVT_V006_002,V006,2.93,4.27,throwing,HIGH,0.6,outputs/clips/EVT_V006_002.mp4,High-speed product motion while detached from nearest person (1.33s),potential_damage_risk
+EVT_V006_003,V006,4.1,4.27,dropping,HIGH,0.8,outputs/clips/EVT_V006_003.mp4,Sustained downward motion (0.17s) followed by sudden stop,potential_damage_risk
+EVT_V006_004,V006,4.53,5.2,throwing,HIGH,0.6,outputs/clips/EVT_V006_004.mp4,High-speed product motion while detached from nearest person (0.67s),potential_damage_risk
+EVT_V006_005,V006,5.53,8.33,throwing,HIGH,0.6,outputs/clips/EVT_V006_005.mp4,High-speed product motion while detached from nearest person (2.80s),potential_damage_risk
+EVT_V006_006,V006,8.67,10.4,throwing,HIGH,0.6,outputs/clips/EVT_V006_006.mp4,High-speed product motion while detached from nearest person (1.73s),potential_damage_risk
+EVT_V006_007,V006,10.17,10.4,dropping,HIGH,0.8,outputs/clips/EVT_V006_007.mp4,Sustained downward motion (0.23s) followed by sudden stop,potential_damage_risk
+EVT_V006_008,V006,10.87,13.67,throwing,HIGH,0.6,outputs/clips/EVT_V006_008.mp4,High-speed product motion while detached from nearest person (2.80s),potential_damage_risk
+EVT_V006_009,V006,14.07,16.47,throwing,HIGH,0.6,outputs/clips/EVT_V006_009.mp4,High-speed product motion while detached from nearest person (2.40s),potential_damage_risk
+EVT_V006_010,V006,17.47,22.53,throwing,HIGH,0.6,outputs/clips/EVT_V006_010.mp4,High-speed product motion while detached from nearest person (5.07s),potential_damage_risk
+EVT_V006_011,V006,22.8,23.07,throwing,HIGH,0.6,outputs/clips/EVT_V006_011.mp4,High-speed product motion while detached from nearest person (0.27s),potential_damage_risk
+EVT_V006_012,V006,23.4,23.67,throwing,HIGH,0.6,outputs/clips/EVT_V006_012.mp4,High-speed product motion while detached from nearest person (0.27s),potential_damage_risk
+EVT_V006_013,V006,24.27,24.57,dropping,HIGH,0.8,outputs/clips/EVT_V006_013.mp4,Sustained downward motion (0.30s) followed by sudden stop,potential_damage_risk
+EVT_V006_014,V006,25.47,27.13,throwing,HIGH,0.6,outputs/clips/EVT_V006_014.mp4,High-speed product motion while detached from nearest person (1.67s),potential_damage_risk
+EVT_V006_015,V006,27.47,28.53,throwing,HIGH,0.6,outputs/clips/EVT_V006_015.mp4,High-speed product motion while detached from nearest person (1.07s),potential_damage_risk
+EVT_V006_016,V006,30.07,30.6,throwing,HIGH,0.6,outputs/clips/EVT_V006_016.mp4,High-speed product motion while detached from nearest person (0.53s),potential_damage_risk
+EVT_V006_017,V006,31.73,32.93,throwing,HIGH,0.6,outputs/clips/EVT_V006_017.mp4,High-speed product motion while detached from nearest person (1.20s),potential_damage_risk
+EVT_V006_018,V006,34.07,38.07,throwing,HIGH,0.6,outputs/clips/EVT_V006_018.mp4,High-speed product motion while detached from nearest person (4.00s),potential_damage_risk
+EVT_V006_019,V006,38.8,41.53,throwing,HIGH,0.6,outputs/clips/EVT_V006_019.mp4,High-speed product motion while detached from nearest person (2.73s),potential_damage_risk
