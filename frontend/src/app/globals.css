@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #14171A;
+  color: #E8EAED;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Genuine data readouts only: timestamps, track IDs, bbox coords */
+.data-readout {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background-color: #5B8DEF;
+  color: #14171A;
+}
