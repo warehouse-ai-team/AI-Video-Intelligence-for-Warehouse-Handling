@@ -1,0 +1,7 @@
+video,duration_sec,fps,frame_count,width,height,sample_frames_dir
+Dock_level__dragging_cupboard.mp4,31.0,30.0,930,1280,720,data/frames/Dock_level__dragging_cupboard
+KD_packets_dragged__heavy_box_kept_on_other_packets.mp4,33.73,30.0,1012,1280,720,data/frames/KD_packets_dragged__heavy_box_kept_on_other_packets
+Rolling_and_dragging_on_wet_floor.mp4,6.1,30.0,183,1280,720,data/frames/Rolling_and_dragging_on_wet_floor
+Rolling_and_dropping_carton.mp4,9.4,30.0,282,1280,720,data/frames/Rolling_and_dropping_carton
+Stepping_on_cartons__vertical_product_kept_horizontally__heavy_product_kept_on_top.mp4,49.03,30.0,1471,1280,720,data/frames/Stepping_on_cartons__vertical_product_kept_horizontally__heavy_product_kept_on_top
+Throwing_Mattresses.mp4,41.63,30.0,1249,1280,720,data/frames/Throwing_Mattresses

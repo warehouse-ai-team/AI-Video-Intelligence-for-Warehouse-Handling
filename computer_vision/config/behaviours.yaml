@@ -1,0 +1,79 @@
+# Behaviour taxonomy for warehouse damage-risk detection.
+# risk: LOW | MEDIUM | HIGH | CRITICAL
+# All thresholds are pixel-space defaults (no camera calibration assumed).
+# Tune these against real footage once videos are available (Phase 1 audit).
+
+behaviours:
+
+  dropping:
+    risk: HIGH
+    description: "Product loses support and falls with rapid downward displacement, ending in a sudden stop."
+    signals: [vertical_velocity_down, sudden_stop, loss_of_person_contact]
+    min_confidence: 0.6
+
+  throwing:
+    risk: HIGH
+    description: "Product is released from a person's control while still in rapid motion, then decelerates sharply away from the person."
+    signals: [rapid_release, high_velocity_at_release, sudden_stop, distance_from_person_increasing]
+    min_confidence: 0.6
+
+  dragging:
+    risk: HIGH
+    description: "Product stays near floor level and is moved horizontally alongside a person instead of being lifted."
+    signals: [low_height_sustained, horizontal_velocity, person_proximity_sustained]
+    min_confidence: 0.55
+
+  rough_handling:
+    risk: HIGH
+    description: "Excessive velocity, acceleration, or direction-change on a tracked product indicating impact-like motion."
+    signals: [high_acceleration, sudden_direction_change, impact_like_stop]
+    min_confidence: 0.55
+
+  improper_stacking:
+    risk: MEDIUM
+    description: "Relative size/type ordering suggests a heavier/larger item is placed above a smaller/lighter one (visual proxy only, not weight-verified)."
+    signals: [bbox_size_ratio, vertical_overlap_order]
+    min_confidence: 0.5
+
+  unstable_stacking:
+    risk: HIGH
+    description: "Stack geometry shows large overhang, leaning, or insufficient support area between layers."
+    signals: [overhang_ratio, centroid_offset, gap_detection]
+    min_confidence: 0.55
+
+  outside_designated_area:
+    risk: MEDIUM
+    description: "Tracked product enters/exits a configured ROI it should not (e.g. staging item ends up in unsafe zone)."
+    signals: [roi_transition]
+    min_confidence: 0.7
+
+  strap_assisted_handling:
+    risk: MEDIUM
+    description: "Proxy detection: person appears to pull/lift a carton via a strap-like linear motion rather than direct grip (visual proxy, strap object detection is unreliable at typical CCTV resolution)."
+    signals: [pull_vector_from_edge, sustained_taut_motion]
+    min_confidence: 0.4
+
+  stepping_on_carton:
+    risk: HIGH
+    description: "Person foot/ankle keypoint overlaps carton bounding box for a sustained duration."
+    signals: [pose_keypoint_overlap, sustained_duration]
+    min_confidence: 0.6
+
+  unsafe_loading_sequence:
+    risk: HIGH
+    description: "Temporal chain: placement -> instability -> additional load -> shift/fall within a short window."
+    signals: [event_chain_temporal]
+    min_confidence: 0.5
+
+# Global temporal window settings
+temporal:
+  window_seconds: 2.0
+  fps_for_window: 15   # nominal; pipeline recalculates from actual video FPS
+  min_event_duration_seconds: 0.3
+
+# ROI zones - EDIT after Phase 1 video audit with real coordinates per camera
+roi_zones:
+  loading_zone: []
+  staging_zone: []
+  truck_zone: []
+  unsafe_zone: []

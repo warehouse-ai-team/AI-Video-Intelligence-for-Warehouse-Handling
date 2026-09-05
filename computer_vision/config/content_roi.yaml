@@ -1,0 +1,35 @@
+# Per-video "content ROI" - the sub-rectangle of the frame that is actual
+# camera footage, excluding NVMS player UI (menus, timestamps, playback
+# controls, split-screen borders, blinking fast-forward icons).
+#
+# Coordinates are (x1, y1, x2, y2) in pixels, at the ORIGINAL video
+# resolution (1280x720 for all 6 audited videos).
+#
+# These were eyeballed from sample frames during Phase 1 review - refine
+# by viewing data/frames/<video_name>/*.jpg if detection quality is still
+# poor near the edges.
+
+content_roi:
+  Dock_level__dragging_cupboard:
+    roi: [0, 60, 1280, 640]
+    note: "top NVMS menu bar ~0-60px, timestamp overlay top-right - excluded"
+
+  KD_packets_dragged__heavy_box_kept_on_other_packets:
+    roi: [0, 60, 1280, 640]
+    note: "same camera/player as above"
+
+  Rolling_and_dragging_on_wet_floor:
+    roi: [180, 100, 1250, 590]
+    note: "split-screen player (2 stacked feeds + sidebar) - crop to just the TOP feed (Dock 08 out 01); left sidebar with green play icons excluded"
+
+  Rolling_and_dropping_carton:
+    roi: [330, 130, 1120, 570]
+    note: "phone photo of monitor - crop to the visible screen area only, excluding bezel/desk background"
+
+  Stepping_on_cartons__vertical_product_kept_horizontally__heavy_product_kept_on_top:
+    roi: [0, 90, 1280, 700]
+    note: "top NVMS menu bar excluded; caption banner at bottom sometimes overlaps - may still cause false blobs when caption appears/disappears, monitor for this"
+
+  Throwing_Mattresses:
+    roi: [220, 100, 1280, 620]
+    note: "left sidebar menu (By Event / camera tree) excluded"
