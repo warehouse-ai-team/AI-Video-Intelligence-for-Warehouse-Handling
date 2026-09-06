@@ -1,23 +1,24 @@
 """
-Phase 5 - Motion feature extraction.
+Phase 5 - Motion feature extraction (v2 - per-object, not merged).
 
-Reads tracking.csv (frame, timestamp, object_id, class, x, y, w, h, cx, cy, confidence)
-and produces features.csv with per-frame motion features.
+Reads tracking.csv (frame, timestamp, object_id, class, x, y, w, h, cx, cy,
+confidence) and produces features.csv with per-frame, per-tracked-object
+motion features.
 
-DESIGN DECISION (documented, not hidden): the ProductBlobDetector/SimpleIOUTracker
-combo still has real ID churn on this footage (verified: 15-68 unique IDs per
-6-50s clip that should have 1-3 real objects). Rather than pretend the IDs are
-stable, behaviour detection here treats the LARGEST product blob in each frame
-as a single "primary product" position time series, regardless of which
-track_id produced it. This is a deliberate hackathon-appropriate shortcut: it
-works because every reviewed clip has one dominant product event at a time
-(confirmed during Phase 1 video audit). It would NOT work correctly on
-footage with multiple simultaneous independent product movements - documented
-as a known limitation, not silently assumed away.
+DESIGN CHANGE FROM v1 (documented, not hidden): the original version merged
+all detected products into one "primary product" trajectory per frame. This
+worked as a stopgap when product detection was unreliable (blob detector),
+but once real product detection went live (custom-trained model), scenes
+with multiple genuine simultaneous boxes/pallets caused that merged
+trajectory to jump between different real physical objects - indistinguishable
+from impossible high-speed motion. Verified empirically: this caused
+"throwing" to fire on every single video, including ones with zero throwing.
 
-For PERSON features we keep this data track_id-based (distance to nearest
-person, etc.), and drop that constraint if evaluation later shows people's
-IDs are stable enough per-clip to justify it.
+Fix: compute motion features PER TRACKED object_id (using the IDs the
+tracker already assigns), not merged across all products in a frame. Each
+tracked object gets its own velocity/acceleration/proximity time series.
+Behaviour rules (behaviour.py) now run per-object and tag which object_id
+triggered each event.
 """
 
 import argparse
@@ -30,110 +31,84 @@ def extract_features(tracking_csv, fps, smoothing_window=5):
     if df.empty:
         return pd.DataFrame()
 
-    max_frame = int(df["frame"].max())
-    frames = np.arange(0, max_frame + 1)
-
-    # --- Primary product proxy: continuity-constrained, not just "largest blob" ---
-    prod = df[df["class"] == "product"].copy()
-    prod["area"] = prod["w"] * prod["h"]
-    # Picking the largest blob independently each frame lets the trajectory
-    # jump between unrelated blobs (blob detector noise/ID churn), which
-    # then looks like impossible high-speed motion to the behaviour engine.
-    # Verified empirically: this caused 5 spurious "throwing" events on a
-    # clip whose only real event was a single "dropping". Fix: prefer the
-    # blob nearest to the previous frame's position (if within max_jump_px),
-    # falling back to the largest blob when there is no previous position
-    # or nothing is within range (e.g. right after a real occlusion/gap).
-    max_jump_px = 120  # ~ plausible product displacement in 1/30s at this camera distance
-    prod_by_frame = {f: g for f, g in prod.groupby("frame")}
-    primary_rows = []
-    prev_cx, prev_cy = None, None
-    for f in frames:
-        candidates = prod_by_frame.get(f)
-        if candidates is None or candidates.empty:
-            primary_rows.append({"cx": np.nan, "cy": np.nan, "w": np.nan, "h": np.nan})
-            continue
-        if prev_cx is not None:
-            d = np.sqrt((candidates["cx"] - prev_cx) ** 2 + (candidates["cy"] - prev_cy) ** 2)
-            near = candidates[d <= max_jump_px]
-            if not near.empty:
-                chosen = near.sort_values("area", ascending=False).iloc[0]
-            else:
-                # Nothing plausible near the last known position - this is a
-                # break in continuity (occlusion, detector miss, or a
-                # completely different blob). Do NOT silently substitute the
-                # largest-but-distant blob (that fabricates impossible
-                # motion - verified empirically, see module docstring).
-                # Mark this frame as missing and reset continuity so the
-                # NEXT frame starts fresh rather than inheriting a bad jump.
-                primary_rows.append({"cx": np.nan, "cy": np.nan, "w": np.nan, "h": np.nan})
-                prev_cx, prev_cy = None, None
-                continue
-        else:
-            chosen = candidates.sort_values("area", ascending=False).iloc[0]
-        primary_rows.append({"cx": chosen["cx"], "cy": chosen["cy"], "w": chosen["w"], "h": chosen["h"]})
-        prev_cx, prev_cy = chosen["cx"], chosen["cy"]
-
-    primary = pd.DataFrame(primary_rows, index=frames)
-
-    # --- Nearest person distance per frame (to primary product centroid) ---
     persons = df[df["class"] == "person"][["frame", "cx", "cy"]]
-    nearest_dist = []
-    for f in frames:
-        if pd.isna(primary.loc[f, "cx"]) if f in primary.index else True:
-            nearest_dist.append(np.nan)
-            continue
-        pcx, pcy = primary.loc[f, "cx"], primary.loc[f, "cy"]
-        this_frame_people = persons[persons["frame"] == f]
-        if this_frame_people.empty:
-            nearest_dist.append(np.nan)
-            continue
-        dists = np.sqrt((this_frame_people["cx"] - pcx) ** 2 + (this_frame_people["cy"] - pcy) ** 2)
-        nearest_dist.append(float(dists.min()))
+    products = df[df["class"] == "product"].copy()
 
-    out = pd.DataFrame({
-        "frame": frames,
-        "timestamp": frames / fps,
-        "product_cx": primary["cx"].values,
-        "product_cy": primary["cy"].values,
-        "product_w": primary["w"].values,
-        "product_h": primary["h"].values,
-        "nearest_person_dist": nearest_dist,
-    })
+    if products.empty:
+        return pd.DataFrame()
 
-    # Interpolate short gaps (product briefly undetected for a few frames -
-    # common given blob detector limitations) but do NOT fill long gaps,
-    # so we don't invent motion where the object simply isn't visible.
-    max_gap = int(fps * 0.5)  # up to 0.5s gap tolerated
-    for col in ["product_cx", "product_cy", "product_w", "product_h"]:
-        out[col] = out[col].interpolate(method="linear", limit=max_gap, limit_area="inside")
+    all_rows = []
 
-    # Smoothed velocity / acceleration via centered rolling window
-    dt = 1.0 / fps
-    out["vx"] = out["product_cx"].diff() / dt
-    out["vy"] = out["product_cy"].diff() / dt
-    out["speed"] = np.sqrt(out["vx"] ** 2 + out["vy"] ** 2)
-    out["vertical_velocity"] = out["vy"]  # positive = moving down (image y increases downward)
+    for obj_id, obj_df in products.groupby("object_id"):
+        obj_df = obj_df.sort_values("frame").reset_index(drop=True)
+        min_frame, max_frame = int(obj_df["frame"].min()), int(obj_df["frame"].max())
+        frames = np.arange(min_frame, max_frame + 1)
 
-    out["vx_smooth"] = out["vx"].rolling(smoothing_window, center=True, min_periods=1).mean()
-    out["vy_smooth"] = out["vy"].rolling(smoothing_window, center=True, min_periods=1).mean()
-    out["speed_smooth"] = out["speed"].rolling(smoothing_window, center=True, min_periods=1).mean()
+        # Reindex onto every frame in this object's lifespan, leaving gaps as NaN
+        # for frames where this specific track_id wasn't detected (brief misses).
+        obj_indexed = obj_df.set_index("frame").reindex(frames)
 
-    out["acceleration"] = out["speed_smooth"].diff() / dt
-    out["acceleration_smooth"] = out["acceleration"].rolling(smoothing_window, center=True, min_periods=1).mean()
+        out = pd.DataFrame({
+            "object_id": obj_id,
+            "frame": frames,
+            "timestamp": frames / fps,
+            "product_cx": obj_indexed["cx"].values,
+            "product_cy": obj_indexed["cy"].values,
+            "product_w": obj_indexed["w"].values,
+            "product_h": obj_indexed["h"].values,
+        })
 
-    # Direction-change magnitude (angle delta between consecutive velocity vectors)
-    ang = np.arctan2(out["vy_smooth"], out["vx_smooth"])
-    ang_delta = ang.diff().abs()
-    ang_delta = np.minimum(ang_delta, 2 * np.pi - ang_delta)  # wrap to [0, pi]
-    out["direction_change"] = ang_delta
+        # Only interpolate short gaps (this object briefly missed a few frames),
+        # never bridge a long gap - long gaps usually mean the tracker lost
+        # this object and a DIFFERENT object picked up the same ID later
+        # (tracker ID reuse), which should NOT be treated as continuous motion.
+        max_gap = int(fps * 0.3)
+        for col in ["product_cx", "product_cy", "product_w", "product_h"]:
+            out[col] = out[col].interpolate(method="linear", limit=max_gap, limit_area="inside")
 
-    # Height above floor proxy: NOT real-world height, just pixel y of box
-    # bottom edge - lower on screen (larger y) is closer to "floor" for a
-    # roughly top-down/oblique dock camera. Documented pixel-space caveat.
-    out["floor_proxy_y"] = out["product_cy"] + out["product_h"] / 2
+        # Nearest person distance, per frame, to THIS object specifically
+        nearest_dist = []
+        for f in frames:
+            row = out[out["frame"] == f].iloc[0]
+            if pd.isna(row["product_cx"]):
+                nearest_dist.append(np.nan)
+                continue
+            this_frame_people = persons[persons["frame"] == f]
+            if this_frame_people.empty:
+                nearest_dist.append(np.nan)
+                continue
+            dists = np.sqrt((this_frame_people["cx"] - row["product_cx"]) ** 2 +
+                             (this_frame_people["cy"] - row["product_cy"]) ** 2)
+            nearest_dist.append(float(dists.min()))
+        out["nearest_person_dist"] = nearest_dist
 
-    return out
+        dt = 1.0 / fps
+        out["vx"] = out["product_cx"].diff() / dt
+        out["vy"] = out["product_cy"].diff() / dt
+        out["speed"] = np.sqrt(out["vx"] ** 2 + out["vy"] ** 2)
+        out["vertical_velocity"] = out["vy"]
+
+        out["vx_smooth"] = out["vx"].rolling(smoothing_window, center=True, min_periods=1).mean()
+        out["vy_smooth"] = out["vy"].rolling(smoothing_window, center=True, min_periods=1).mean()
+        out["speed_smooth"] = out["speed"].rolling(smoothing_window, center=True, min_periods=1).mean()
+
+        out["acceleration"] = out["speed_smooth"].diff() / dt
+        out["acceleration_smooth"] = out["acceleration"].rolling(smoothing_window, center=True, min_periods=1).mean()
+
+        ang = np.arctan2(out["vy_smooth"], out["vx_smooth"])
+        ang_delta = ang.diff().abs()
+        ang_delta = np.minimum(ang_delta, 2 * np.pi - ang_delta)
+        out["direction_change"] = ang_delta
+
+        out["floor_proxy_y"] = out["product_cy"] + out["product_h"] / 2
+
+        all_rows.append(out)
+
+    if not all_rows:
+        return pd.DataFrame()
+
+    result = pd.concat(all_rows, ignore_index=True)
+    return result
 
 
 def main():
@@ -145,7 +120,8 @@ def main():
 
     features = extract_features(args.tracking_csv, args.fps)
     features.to_csv(args.out, index=False)
-    print(f"Wrote {len(features)} feature rows -> {args.out}")
+    print(f"Wrote {len(features)} feature rows across "
+          f"{features['object_id'].nunique() if not features.empty else 0} tracked objects -> {args.out}")
 
 
 if __name__ == "__main__":

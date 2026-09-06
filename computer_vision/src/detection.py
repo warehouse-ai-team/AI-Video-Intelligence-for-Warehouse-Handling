@@ -106,6 +106,38 @@ class YoloWorldProductDetector:
         return detections
 
 
+class CustomYoloProductDetector:
+    """
+    Fine-tuned YOLO for carton/mattress/pallet, trained specifically on
+    this footage (see computer_vision/README.md "Custom training plan").
+
+    Used once you have a trained weights file (e.g.
+    runs/detect/train/weights/best.pt) - see train_product_detector.py.
+    Same Detection interface as the other detectors, so it's a drop-in
+    swap in run_tracking_demo.py.
+    """
+
+    def __init__(self, model_path="runs/detect/train/weights/best.pt", conf_threshold=0.25, device="auto"):
+        self.model = YOLO(model_path)
+        self.conf_threshold = conf_threshold
+        self.device = None if device == "auto" else device
+        self.class_names = self.model.names  # dict {id: name}, comes from the trained model itself
+
+    def detect(self, frame, exclude_boxes=None):
+        results = self.model.predict(
+            frame, conf=self.conf_threshold, device=self.device, verbose=False
+        )
+        r = results[0]
+        detections = []
+        for box in r.boxes:
+            cls_id = int(box.cls[0])
+            cls_name = self.class_names.get(cls_id, "product")
+            conf = float(box.conf[0])
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
+            detections.append(Detection(cls_name, conf, x1, y1, x2, y2, None))
+        return detections
+
+
 class ProductBlobDetector:
     """
     Class-agnostic moving-object detector for products (carton/mattress/pallet).

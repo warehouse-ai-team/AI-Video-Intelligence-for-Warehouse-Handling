@@ -159,21 +159,58 @@ DETECTORS = {
 }
 
 
+def _merge_duplicate_events(events, overlap_thresh=0.5):
+    """
+    Multiple tracked objects can trigger the "same" real event (e.g. a
+    fragmented track re-detects as 2 IDs for one physical box). Merge
+    same-behaviour events whose time windows substantially overlap, keeping
+    the higher-confidence one, so one real event doesn't get double-counted
+    just because the tracker briefly lost and re-acquired the object.
+    """
+    if not events:
+        return events
+    events = sorted(events, key=lambda e: e["start_time"])
+    merged = []
+    for e in events:
+        merged_into_existing = False
+        for m in merged:
+            if m["behaviour"] != e["behaviour"]:
+                continue
+            overlap_start = max(m["start_time"], e["start_time"])
+            overlap_end = min(m["end_time"], e["end_time"])
+            overlap = max(0, overlap_end - overlap_start)
+            shorter = min(m["end_time"] - m["start_time"], e["end_time"] - e["start_time"])
+            if shorter > 0 and overlap / shorter > overlap_thresh:
+                if e["confidence"] > m["confidence"]:
+                    m.update(e)
+                merged_into_existing = True
+                break
+        if not merged_into_existing:
+            merged.append(dict(e))
+    return merged
+
+
 def run_behaviour_engine(features_csv, fps, config_path="config/behaviours.yaml"):
     feat = pd.read_csv(features_csv)
-    if feat.empty or feat["product_cx"].dropna().empty:
+    if feat.empty or "object_id" not in feat.columns:
         return []
 
     config = load_behaviour_config(config_path)
     all_events = []
-    for name, fn in DETECTORS.items():
-        behaviour_cfg = config["behaviours"].get(name, {})
-        min_conf = behaviour_cfg.get("min_confidence", 0.5)
-        events = fn(feat, fps)
-        for e in events:
-            if e["confidence"] >= min_conf:
-                e["risk"] = behaviour_cfg.get("risk", "MEDIUM")
-                all_events.append(e)
 
+    for obj_id, obj_feat in feat.groupby("object_id"):
+        if obj_feat["product_cx"].dropna().empty:
+            continue
+        for name, fn in DETECTORS.items():
+            behaviour_cfg = config["behaviours"].get(name, {})
+            min_conf = behaviour_cfg.get("min_confidence", 0.5)
+            events = fn(obj_feat, fps)
+            for e in events:
+                if e["confidence"] >= min_conf:
+                    e["risk"] = behaviour_cfg.get("risk", "MEDIUM")
+                    e["object_id"] = obj_id
+                    all_events.append(e)
+
+    all_events = _merge_duplicate_events(all_events)
     all_events.sort(key=lambda e: e["start_time"])
     return all_events

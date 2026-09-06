@@ -18,7 +18,7 @@ import cv2
 import yaml
 
 sys.path.insert(0, os.path.dirname(__file__))
-from detection import ProductBlobDetector, YoloWorldProductDetector, Detection
+from detection import ProductBlobDetector, YoloWorldProductDetector, CustomYoloProductDetector, Detection
 from tracking import PersonByteTracker, SimpleIOUTracker
 
 
@@ -42,10 +42,13 @@ def main():
     ap.add_argument("--video", required=True)
     ap.add_argument("--out_dir", default="outputs")
     ap.add_argument("--frame_skip", type=int, default=1, help="process every Nth frame (speed vs temporal resolution tradeoff)")
-    ap.add_argument("--product_detector", choices=["blob", "yolo_world"], default="blob",
-                     help="blob = background-subtraction proxy (verified broken on busy scenes, see "
-                          "data/annotations/detection_findings.md). yolo_world = open-vocab pretrained "
-                          "detector (recommended - test it works on your machine first, see README).")
+    ap.add_argument("--product_detector", choices=["blob", "yolo_world", "custom"], default="blob",
+                     help="blob = background-subtraction proxy (verified broken on busy scenes). "
+                          "yolo_world = open-vocab pretrained (verified broken for this footage - "
+                          "doesn't recognize the mattress at all). custom = your own fine-tuned "
+                          "model (recommended - see README 'Custom training plan').")
+    ap.add_argument("--custom_weights", default="runs/detect/product_detector/weights/best.pt",
+                     help="path to your fine-tuned weights, used only when --product_detector custom")
     args = ap.parse_args()
 
     video_name = os.path.splitext(os.path.basename(args.video))[0]
@@ -66,7 +69,11 @@ def main():
     person_tracker = PersonByteTracker(model_path="yolo11n-pose.pt", conf_threshold=0.35, device="cpu")
     if args.product_detector == "yolo_world":
         product_detector = YoloWorldProductDetector()
-        print("Using YoloWorldProductDetector (open-vocabulary, class-based)")
+        print("Using YoloWorldProductDetector (open-vocabulary, class-based) - "
+              "NOTE: verified NOT to detect mattress on this footage, kept for reference only")
+    elif args.product_detector == "custom":
+        product_detector = CustomYoloProductDetector(model_path=args.custom_weights)
+        print(f"Using CustomYoloProductDetector, weights={args.custom_weights}")
     else:
         product_detector = ProductBlobDetector(min_area=1500)
         print("Using ProductBlobDetector (motion-based proxy - "
