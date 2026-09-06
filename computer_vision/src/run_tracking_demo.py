@@ -106,11 +106,23 @@ def main():
         product_tracks = product_tracker.update(product_dets)
 
         for p in person_dets:
+            # Ankle keypoints (COCO pose indices 15=left_ankle, 16=right_ankle),
+            # appended as extra trailing columns - added for stepping_on_carton
+            # (see behaviour.py / features.load_person_ankle_points). Existing
+            # consumers reading the first 11 columns by name are unaffected.
+            kpts = p.get("keypoints")
+            if kpts is not None and len(kpts) >= 17:
+                la_x, la_y = kpts[15]
+                ra_x, ra_y = kpts[16]
+            else:
+                la_x = la_y = ra_x = ra_y = ""
+
             csv_rows.append([
                 frame_idx, round(timestamp, 3), f"person_{p['track_id']}", "person",
                 round(p["x1"], 1), round(p["y1"], 1),
                 round(p["x2"] - p["x1"], 1), round(p["y2"] - p["y1"], 1),
                 round(p["cx"], 1), round(p["cy"], 1), round(p["conf"], 3),
+                la_x, la_y, ra_x, ra_y,
             ])
             cv2.rectangle(frame, (int(p["x1"]), int(p["y1"])), (int(p["x2"]), int(p["y2"])), COLORS["person"], 2)
             cv2.putText(frame, f"PERSON #{p['track_id']}", (int(p["x1"]), int(p["y1"]) - 8),
@@ -122,6 +134,7 @@ def main():
                 round(pr["x1"], 1), round(pr["y1"], 1),
                 round(pr["x2"] - pr["x1"], 1), round(pr["y2"] - pr["y1"], 1),
                 round(pr["cx"], 1), round(pr["cy"], 1), round(pr["conf"], 3),
+                "", "", "", "",  # no ankle keypoints for product rows
             ])
             cv2.rectangle(frame, (int(pr["x1"]), int(pr["y1"])), (int(pr["x2"]), int(pr["y2"])), COLORS["product"], 2)
             cv2.putText(frame, f"PRODUCT #{pr['track_id']}", (int(pr["x1"]), int(pr["y1"]) - 8),
@@ -136,7 +149,8 @@ def main():
 
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["frame", "timestamp", "object_id", "class", "x", "y", "w", "h", "cx", "cy", "confidence"])
+        w.writerow(["frame", "timestamp", "object_id", "class", "x", "y", "w", "h", "cx", "cy", "confidence",
+                    "left_ankle_x", "left_ankle_y", "right_ankle_x", "right_ankle_y"])
         w.writerows(csv_rows)
 
     print(f"Processed {n_frames} frames in {elapsed:.1f}s ({n_frames/elapsed:.1f} FPS on this CPU)")

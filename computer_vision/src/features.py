@@ -133,7 +133,71 @@ def extract_features(tracking_csv, fps, smoothing_window=5):
     # roughly top-down/oblique dock camera. Documented pixel-space caveat.
     out["floor_proxy_y"] = out["product_cy"] + out["product_h"] / 2
 
+    # Product area, used to scale-normalize acceleration for rough_handling
+    # (a large mattress and a small box show very different raw pixel
+    # acceleration for the "same" real jolt - normalize by sqrt(area) so one
+    # threshold works across object sizes).
+    out["product_area"] = out["product_w"] * out["product_h"]
+    out["acceleration_normalized"] = out["acceleration_smooth"] / np.sqrt(out["product_area"].clip(lower=1))
+
     return out
+
+
+def load_all_product_boxes(tracking_csv):
+    """
+    Returns {frame: [dict(track_id,x1,y1,x2,y2,cx,cy,w,h,area), ...]} for
+    EVERY product box in every frame (not just the single "primary product"
+    used by extract_features). Needed by multi-object rules (stacking,
+    strap-assisted handling) where more than one carton can be in frame at
+    once and the single-primary-product simplification in extract_features
+    would hide the second box entirely.
+    """
+    df = pd.read_csv(tracking_csv)
+    prod = df[df["class"] == "product"].copy()
+    if prod.empty:
+        return {}
+    prod["x1"] = prod["x"]
+    prod["y1"] = prod["y"]
+    prod["x2"] = prod["x"] + prod["w"]
+    prod["y2"] = prod["y"] + prod["h"]
+    prod["area"] = prod["w"] * prod["h"]
+
+    by_frame = {}
+    for f, g in prod.groupby("frame"):
+        by_frame[int(f)] = g[["object_id", "x1", "y1", "x2", "y2", "cx", "cy", "w", "h", "area"]].rename(
+            columns={"object_id": "track_id"}
+        ).to_dict("records")
+    return by_frame
+
+
+def load_person_ankle_points(tracking_csv):
+    """
+    Returns {frame: [(x, y), ...]} of ankle keypoints for every tracked
+    person in that frame, IF the tracking CSV has ankle columns
+    (left_ankle_x/y, right_ankle_x/y - added in run_tracking_demo.py).
+
+    Older tracking.csv files without these columns return {} (empty),
+    NOT an error - callers (stepping_on_carton) must treat that as "data
+    not available yet" and skip gracefully, since this is a real, current
+    limitation (see config/behaviours.yaml note on stepping_on_carton).
+    """
+    df = pd.read_csv(tracking_csv)
+    ankle_cols = {"left_ankle_x", "left_ankle_y", "right_ankle_x", "right_ankle_y"}
+    if not ankle_cols.issubset(set(df.columns)):
+        return {}
+
+    persons = df[df["class"] == "person"]
+    by_frame = {}
+    for f, g in persons.groupby("frame"):
+        pts = []
+        for _, row in g.iterrows():
+            for xcol, ycol in [("left_ankle_x", "left_ankle_y"), ("right_ankle_x", "right_ankle_y")]:
+                x, y = row.get(xcol), row.get(ycol)
+                if pd.notna(x) and pd.notna(y) and x != 0 and y != 0:
+                    pts.append((float(x), float(y)))
+        if pts:
+            by_frame[int(f)] = pts
+    return by_frame
 
 
 def main():

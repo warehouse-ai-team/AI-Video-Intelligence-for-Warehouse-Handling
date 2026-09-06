@@ -1,7 +1,24 @@
 # Behaviour taxonomy for warehouse damage-risk detection.
 # risk: LOW | MEDIUM | HIGH | CRITICAL
-# All thresholds are pixel-space defaults (no camera calibration assumed).
-# Tune these against real footage once videos are available (Phase 1 audit).
+# All thresholds are pixel-space defaults for 1280x720 @ 30fps footage
+# (see data/annotations/video_audit_report.csv). No camera calibration
+# assumed - re-tune per-camera if resolution/distance changes.
+#
+# HOW TO TUNE (Member 2 workflow):
+#   1. Run src/evaluation.py against data/annotations/ground_truth.csv
+#   2. Look at the false-positive / false-negative table it prints
+#   3. Adjust ONLY the `thresholds:` block below for the offending
+#      behaviour (never hardcode numbers back into behaviour.py)
+#   4. Re-run evaluation.py, compare precision/recall, repeat
+#
+# NOTE ON DEPENDENCY: these thresholds were set from footage physics
+# reasoning + the fixture-based unit tests in tests/, NOT from Member 1's
+# real tracking output, because the product detector feeding the pipeline
+# is still the unreliable blob detector as of this writing (see
+# data/annotations/detection_findings.md). Once run_tracking_demo.py is
+# re-run with --product_detector yolo_world on all 6 real videos, re-tune
+# every threshold here against the real numbers - treat the values below
+# as a documented starting point, not final.
 
 behaviours:
 
@@ -10,60 +27,110 @@ behaviours:
     description: "Product loses support and falls with rapid downward displacement, ending in a sudden stop."
     signals: [vertical_velocity_down, sudden_stop, loss_of_person_contact]
     min_confidence: 0.6
+    thresholds:
+      drop_speed_thresh: 250        # px/s downward (vy_smooth) to count as "falling"
+      stop_speed_thresh: 60         # px/s - speed must drop below this shortly after to count as "impact stop"
+      min_duration_s: 0.15
+      min_net_vertical_drop_px: 40  # NEW: net displacement over the window must exceed this (filters jitter/noise)
 
   throwing:
     risk: HIGH
     description: "Product is released from a person's control while still in rapid motion, then decelerates sharply away from the person."
     signals: [rapid_release, high_velocity_at_release, sudden_stop, distance_from_person_increasing]
     min_confidence: 0.6
+    thresholds:
+      release_speed_thresh: 300
+      person_distance_thresh: 80
+      horiz_component_min_frac: 0.35  # NEW: fraction of speed that must be horizontal (distinguishes throw from straight drop)
+      min_duration_s: 0.15
+      min_continuous_frames: 3        # NEW: require this many *consecutive* non-interpolated frames (avoids track-jump artifacts)
 
   dragging:
     risk: HIGH
     description: "Product stays near floor level and is moved horizontally alongside a person instead of being lifted."
     signals: [low_height_sustained, horizontal_velocity, person_proximity_sustained]
     min_confidence: 0.55
+    thresholds:
+      floor_y_percentile: 70
+      horiz_speed_thresh: 40
+      proximity_thresh: 150
+      min_duration_s: 0.5
 
   rough_handling:
     risk: HIGH
     description: "Excessive velocity, acceleration, or direction-change on a tracked product indicating impact-like motion."
     signals: [high_acceleration, sudden_direction_change, impact_like_stop]
     min_confidence: 0.55
+    thresholds:
+      accel_thresh_normalized: 55    # NEW: acceleration_smooth / sqrt(product_area) - scale-invariant vs. raw pixel accel
+      direction_change_thresh: 2.0
+      min_duration_s: 0.1
 
   improper_stacking:
     risk: MEDIUM
     description: "Relative size/type ordering suggests a heavier/larger item is placed above a smaller/lighter one (visual proxy only, not weight-verified)."
     signals: [bbox_size_ratio, vertical_overlap_order]
     min_confidence: 0.5
+    thresholds:
+      min_horizontal_overlap_frac: 0.4  # how much the two boxes must overlap in x to count as "stacked" not "side by side"
+      area_ratio_thresh: 1.15           # upper_area / lower_area must exceed this to flag "heavier on top"
+      min_duration_s: 1.0                # sustained placement, not a passing occlusion
 
   unstable_stacking:
     risk: HIGH
     description: "Stack geometry shows large overhang, leaning, or insufficient support area between layers."
     signals: [overhang_ratio, centroid_offset, gap_detection]
     min_confidence: 0.55
+    thresholds:
+      min_horizontal_overlap_frac: 0.4
+      overhang_frac_thresh: 0.35   # |upper_cx - lower_cx| / lower_w must exceed this to count as leaning/overhanging
+      min_duration_s: 0.5
 
   outside_designated_area:
     risk: MEDIUM
     description: "Tracked product enters/exits a configured ROI it should not (e.g. staging item ends up in unsafe zone)."
     signals: [roi_transition]
     min_confidence: 0.7
+    thresholds:
+      min_duration_s: 0.5
+    # NOT ACTIVE until roi_zones below are filled in with real per-camera
+    # pixel polygons (needs Member 1 to supply per-video zone coordinates
+    # during a video audit pass, same way content_roi.yaml was built).
 
   strap_assisted_handling:
     risk: MEDIUM
     description: "Proxy detection: person appears to pull/lift a carton via a strap-like linear motion rather than direct grip (visual proxy, strap object detection is unreliable at typical CCTV resolution)."
     signals: [pull_vector_from_edge, sustained_taut_motion]
     min_confidence: 0.4
+    thresholds:
+      min_gap_px: 15          # product bbox must NOT overlap person bbox (no direct hand grip visible)
+      max_gap_px: 180          # but must stay within this distance (still "attached" via strap, not independent)
+      distance_variation_max: 40  # max stdev of gap distance over the window - stays roughly constant if strap-taut
+      speed_min: 15
+      speed_max: 220
+      min_duration_s: 0.6
 
   stepping_on_carton:
     risk: HIGH
     description: "Person foot/ankle keypoint overlaps carton bounding box for a sustained duration."
     signals: [pose_keypoint_overlap, sustained_duration]
     min_confidence: 0.6
+    thresholds:
+      min_duration_s: 0.4
+    # Requires ankle keypoint columns in tracking.csv (added to
+    # run_tracking_demo.py output - see src/tracking.py /
+    # PersonByteTracker). Older tracking.csv files without these columns
+    # will cause this detector to return [] with a logged reason, not crash.
 
   unsafe_loading_sequence:
     risk: HIGH
     description: "Temporal chain: placement -> instability -> additional load -> shift/fall within a short window."
     signals: [event_chain_temporal]
     min_confidence: 0.5
+    thresholds:
+      chain_window_s: 8.0   # max gap between an "instability" event and a following "failure" event to count as one chain
+    # Meta-rule: runs AFTER all other detectors, over their combined
+    # output, not over raw features. See detect_unsafe_loading_sequence.
 
 # Global temporal window settings
 temporal:
@@ -71,9 +138,18 @@ temporal:
   fps_for_window: 15   # nominal; pipeline recalculates from actual video FPS
   min_event_duration_seconds: 0.3
 
-# ROI zones - EDIT after Phase 1 video audit with real coordinates per camera
+# Behaviours that count as "instability / setup" for the unsafe_loading_sequence chain rule
+chain_instability_behaviours: [improper_stacking, unstable_stacking, dragging]
+# Behaviours that count as "failure" for the unsafe_loading_sequence chain rule
+chain_failure_behaviours: [dropping, rough_handling]
+
+# ROI zones - EDIT after a dedicated zone-audit pass with real coordinates
+# per camera (same process used to build content_roi.yaml). Empty by
+# default - outside_designated_area will not fire until these are filled in.
+# Format: {video_name: [x1, y1, x2, y2]} pixel rectangle per video (matches
+# the video_name keys used in content_roi.yaml).
 roi_zones:
-  loading_zone: []
-  staging_zone: []
-  truck_zone: []
-  unsafe_zone: []
+  loading_zone: {}
+  staging_zone: {}
+  truck_zone: {}
+  unsafe_zone: {}
