@@ -18,7 +18,7 @@ import cv2
 import yaml
 
 sys.path.insert(0, os.path.dirname(__file__))
-from detection import ProductBlobDetector, Detection
+from detection import ProductBlobDetector, YoloWorldProductDetector, Detection
 from tracking import PersonByteTracker, SimpleIOUTracker
 
 
@@ -41,6 +41,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
     ap.add_argument("--out_dir", default="outputs")
+    ap.add_argument("--frame_skip", type=int, default=1, help="process every Nth frame (speed vs temporal resolution tradeoff)")
+    ap.add_argument("--product_detector", choices=["blob", "yolo_world"], default="blob",
+                     help="blob = background-subtraction proxy (verified broken on busy scenes, see "
+                          "data/annotations/detection_findings.md). yolo_world = open-vocab pretrained "
+                          "detector (recommended - test it works on your machine first, see README).")
     args = ap.parse_args()
 
     video_name = os.path.splitext(os.path.basename(args.video))[0]
@@ -59,7 +64,13 @@ def main():
     writer = cv2.VideoWriter(video_out_path, fourcc, fps, (width, height))
 
     person_tracker = PersonByteTracker(model_path="yolo11n-pose.pt", conf_threshold=0.35, device="cpu")
-    product_detector = ProductBlobDetector(min_area=1500)
+    if args.product_detector == "yolo_world":
+        product_detector = YoloWorldProductDetector()
+        print("Using YoloWorldProductDetector (open-vocabulary, class-based)")
+    else:
+        product_detector = ProductBlobDetector(min_area=1500)
+        print("Using ProductBlobDetector (motion-based proxy - "
+              "see data/annotations/detection_findings.md for known limitations)")
     product_tracker = SimpleIOUTracker(iou_threshold=0.15, max_missed=10, max_centroid_dist=80)
 
     content_roi = load_content_roi(video_name)
@@ -72,7 +83,7 @@ def main():
     t0 = time.time()
     n_frames = 0
 
-    for frame_idx, frame, person_dets in person_tracker.track_video(args.video):
+    for frame_idx, frame, person_dets in person_tracker.track_video(args.video, content_roi=content_roi, frame_skip=args.frame_skip):
         n_frames += 1
         timestamp = frame_idx / fps
 

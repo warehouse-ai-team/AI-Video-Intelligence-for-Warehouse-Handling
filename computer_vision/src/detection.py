@@ -3,18 +3,23 @@ Phase 3/5 - Detection module.
 
 Two complementary detectors, because COCO-pretrained YOLO has NO class for
 carton / box / mattress / pallet (verified empirically on real footage -
-see data/annotations/detection_findings.md). We do NOT train a custom model
-in the 2-day window; instead:
+see data/annotations/detection_findings.md).
 
-1. PersonDetector - pretrained YOLO, class 0 (person). Reliable, verified.
-2. ProductBlobDetector - background-subtraction based motion blob detector.
-   Class-agnostic proxy for "product" (carton/mattress/pallet/whatever moves).
-   Works on any static CCTV camera without training or internet access.
-
-If you test YOLO-World locally (see README) and it reliably detects
-'cardboard box' / 'mattress' / 'pallet' on your machine, swap
-ProductBlobDetector for YoloWorldProductDetector - the interface
-(list of Detection namedtuples per frame) is identical either way.
+STATUS (updated after running across all 6 real videos, not just one):
+- PersonDetector: reliable, verified.
+- YoloWorldProductDetector: PREFERRED for products. Not yet verified inside
+  this build sandbox (network-restricted, see class docstring) but should
+  work on a normal machine. Test it first.
+- ProductBlobDetector: the original class-agnostic motion-blob fallback.
+  VERIFIED BROKEN for busy scenes: on all 6 real clips it just as often
+  tracks ambient foot traffic as the actual flagged product, because it has
+  no way to distinguish "a carton" from "a person walking through the
+  background" - both are just moving blobs. Kept in the codebase as a
+  last-resort fallback (e.g. if YOLO-World isn't usable) and because the
+  background-subtraction code is still useful for other things (e.g. a
+  coarse "is anything moving in this ROI at all" signal), but it should NOT
+  be trusted as the primary product tracker without further constraints
+  (e.g. restricting it to a tight ROI immediately at the truck opening).
 """
 
 from collections import namedtuple
@@ -46,6 +51,58 @@ class PersonDetector:
             conf = float(box.conf[0])
             kpts = kpts_all[i].tolist() if kpts_all is not None and i < len(kpts_all) else None
             detections.append(Detection("person", conf, x1, y1, x2, y2, kpts))
+        return detections
+
+
+class YoloWorldProductDetector:
+    """
+    Open-vocabulary product detector using YOLO-World. PREFERRED over
+    ProductBlobDetector - test this first on your machine.
+
+    Why: empirically (see data/annotations/detection_findings.md), background
+    subtraction fails on busy dock scenes because ambient foot traffic and
+    other continuous motion gets picked up as "the product" just as often as
+    the actual carton/mattress/pallet involved in the flagged event. YOLO-World
+    detects by semantic class instead of by motion, so it doesn't have this
+    failure mode.
+
+    This class could NOT be tested inside the build sandbox - CLIP's weight
+    host (openaipublic.azureedge.net) isn't on the sandbox's restricted
+    network allowlist (only pypi/npm/github are permitted there). It WILL
+    work on a normal internet connection. Test with:
+
+        python -c "
+        from ultralytics import YOLO
+        m = YOLO('yolov8s-world.pt')
+        m.set_classes(['cardboard box','mattress','pallet','pallet jack'])
+        r = m.predict('data/frames/Throwing_Mattresses/Throwing_Mattresses_f000267_t8.90s.jpg')
+        r[0].show()
+        "
+
+    If that runs and draws boxes around the mattress, swap this class in for
+    ProductBlobDetector in run_tracking_demo.py - the Detection interface is
+    identical, no other code changes needed.
+    """
+
+    def __init__(self, classes=None, conf_threshold=0.15, device="auto"):
+        self.model = YOLO("yolov8s-world.pt")
+        self.classes = classes or ["cardboard box", "carton", "mattress", "pallet", "pallet jack"]
+        self.model.set_classes(self.classes)
+        self.conf_threshold = conf_threshold
+        self.device = None if device == "auto" else device
+
+    def detect(self, frame, exclude_boxes=None):
+        results = self.model.predict(
+            frame, conf=self.conf_threshold, device=self.device, verbose=False
+        )
+        r = results[0]
+        detections = []
+        for box in r.boxes:
+            cls_id = int(box.cls[0])
+            cls_name = self.classes[cls_id] if cls_id < len(self.classes) else "product"
+            conf = float(box.conf[0])
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
+            detections.append(Detection(cls_name, conf, x1, y1, x2, y2, None))
         return detections
 
 
