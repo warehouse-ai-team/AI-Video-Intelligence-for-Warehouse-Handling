@@ -23,6 +23,12 @@ raw recordings.
 - Building the backend or frontend? → `docs/api-contract.md` and `docs/event-schema.md`
 - Want the honest "what's actually verified to work" record? → `computer_vision/data/annotations/detection_findings.md`
 
+## Backend (Member 3)
+
+The FastAPI backend receives Computer Vision events, calculates explainable
+potential-risk scores, and stores events plus score factors in SQLite. See
+`docs/backend.md` for setup, endpoints, and local demo commands.
+
 ## Responsible AI
 
 This system flags **potential risk**, never confirmed damage — a camera
