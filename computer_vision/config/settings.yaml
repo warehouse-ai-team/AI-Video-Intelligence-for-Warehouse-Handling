@@ -1,0 +1,30 @@
+# Global pipeline settings
+
+video:
+  frame_skip: 1          # process every Nth frame (1 = every frame)
+  resize_width: 1280      # null to keep original resolution
+  target_fps: null        # null = use source FPS
+
+detection:
+  model: "yolo11n.pt"    # nano model for speed; swap to yolo11s/m if accuracy too low
+  device: "auto"          # auto | cuda | cpu
+  conf_threshold: 0.35
+  classes: null            # null = all COCO classes at first; narrow after video audit
+  pose_model: "yolo11n-pose.pt"
+
+tracking:
+  tracker: "bytetrack.yaml"   # ultralytics built-in ByteTrack config
+
+motion:
+  smoothing_window: 5     # frames, for velocity/accel smoothing
+  fps_assumed_if_unknown: 25
+
+clips:
+  pre_event_seconds: 2.0
+  post_event_seconds: 2.0
+
+output:
+  base_dir: "outputs"
+  save_annotated_video: true
+  save_tracking_csv: true
+  save_screenshots: true
