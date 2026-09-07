@@ -1,61 +1,39 @@
-# Warehouse AI Team Project
+# Warehouse CV Module — Computer Vision / Video Intelligence
 
-AI-powered video intelligence for warehouse loading/unloading — detects
-risky handling behaviour (dropping, throwing, dragging, improper stacking,
-stepping on cartons, etc.) from dock CCTV footage and generates structured,
-evidence-backed alerts instead of relying on after-the-fact human review of
-raw recordings.
+Status: **Phases 1-7 built and tested against your real 6 videos. One
 
-## Team structure
+architectural pivot required before the behaviour engine's output can be
 
-| Folder | Responsibility | Status |
-|---|---|---|
-| `computer_vision/` | Video ingestion, detection, tracking, behaviour/risk detection, event generation | In progress — detection, tracking and Behaviour Intelligence modules implemented and under validation |
-| `backend/` | API serving events/videos to frontend + assistant | Not started |
-| `frontend/` | Dashboard UI | Not started |
-| `ai_assistant/` | Conversational assistant over event data | Not started |
-| `docs/` | Shared architecture & integration contract | `architecture.md`, `api-contract.md`, `event-schema.md` — written by the CV side to unblock the others, should be updated whoever builds on top |
-| `data/sample_events/` | Real (but accuracy-unvalidated) sample event output for frontend/backend dev | See `data/sample_events/NOTE.md` before using |
+trusted — see below.**
 
-## Start here
+Read `data/annotations/detection_findings.md` first — it's the honest,
 
-- Building the CV pipeline further? → `computer_vision/README.md`
-- Working on Behaviour Intelligence? → `computer_vision/src/behaviour.py` and `computer_vision/config/behaviours.yaml`
-- Evaluating behaviour detection? → `computer_vision/src/evaluation.py`
-- Running behaviour tests? → `computer_vision/tests/test_behaviour_synthetic.py`
-- Building the backend or frontend? → `docs/api-contract.md` and `docs/event-schema.md`
-- Want the honest "what's actually verified to work" record? → `computer_vision/data/annotations/detection_findings.md`
+verified record of what works, what was tried and failed, and why. This
 
-## Behaviour Intelligence
+README summarizes it; that file has the receipts.
 
-The Behaviour Intelligence module analyses object tracking data and applies
-rule-based state-transition logic to identify risky warehouse handling actions.
+## TL;DR status
 
-Currently supported behaviours include:
+| Phase | Status |
+|---|---|
+| 1. Video audit | Done. Real metadata + ground truth for all 6 clips (`data/annotations/ground_truth.csv`) |
+| 3. Person detection | Verified working (pretrained YOLO) |
+| 4. Person tracking | Working, real ID churn documented (not hidden) |
+| 3/5. Product detection | Motion-blob proxy verified BROKEN on busy scenes. YOLO-World built but needs YOU to test (sandbox network-restricted) |
+| 5. Motion features | Built, logic sound, currently fed unreliable product input |
+| 6. Behaviour engine | Logic built (dropping/throwing/dragging/rough_handling), do not trust current output until product detection is fixed |
+| 7. Event JSON/CSV | Schema built and working, same caveat as above |
+| 8-9. Clips/pipeline/eval | Not started - blocked on product detection fix |
 
-- Dropping
-- Throwing
-- Dragging
-- Rough handling
-- Improper stacking
-- Unstable stacking
-- Outside designated area
-- Strap-assisted handling
-- Stepping on cartons
-- Unsafe loading sequence
+## THE ONE THING YOU NEED TO DO FIRST
 
-Behaviour thresholds and detection parameters are maintained in
-`computer_vision/config/behaviours.yaml`.
+Test YOLO-World on your machine (needs normal internet - it failed in my
 
-Synthetic tests and evaluation utilities are provided to validate behaviour
-rules and compare detected events against available ground-truth annotations.
-Behaviour detection accuracy still requires validation on the final tracking
-outputs from the Computer Vision pipeline.
+sandbox only because CLIP's weight host isn't on the sandbox's restricted
 
-## Responsible AI
+allowlist):
 
-This system flags **potential risk**, never confirmed damage — a camera
-cannot verify physical product damage, only risky handling behaviour. It does
-not identify workers by name or face; detected people are referred to by
-ephemeral track IDs only. See `docs/architecture.md` for the full list of
-engineering decisions driven by this.
+```powershell
+pip install ultralytics
+
+python -c "from ultralytics import YOLO; m = YOLO('yolov8s-world.pt'); m.set_classes(['cardboard box','mattress','pallet']); r = m.predict('data/frames/Throwing_Mattresses/Throwing_Mattresses_f000267_t8.90s.jpg'); r[0].show()"
