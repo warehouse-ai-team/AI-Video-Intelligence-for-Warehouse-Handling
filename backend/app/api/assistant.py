@@ -10,6 +10,6 @@ assistant = WarehouseAssistant()
 def chat(request: ChatRequest) -> ChatResponse:
     try:
         result = assistant.ask(request.question, request.selected_event_id)
-    except Exception as exc:  # narrow this once real backend error types are known
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     return ChatResponse(answer=result["answer"], tools_used=result["tools_used"])

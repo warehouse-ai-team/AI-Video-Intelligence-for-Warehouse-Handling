@@ -1,6 +1,13 @@
 
-venv/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
 .venv/
+venv/
 
 # Python
 __pycache__/
@@ -54,4 +61,7 @@ __pycache__/
 *.py[cod]
 .venv/
 backend/warehouse.db
+
+frontend/.next/
+frontend/node_modules/
 

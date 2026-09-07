@@ -11,9 +11,9 @@ export interface AssistantMessage {
 
 export const SUGGESTED_QUESTIONS = [
   'Which behaviour happened most frequently?',
-  'Which bay has the highest risk?',
+  'Which video has the most incidents?',
   'Why was this incident classified as high risk?',
-  'Show me recent critical incidents.',
+  'How many critical events are there?',
 ];
 
 interface ChatApiResponse {
@@ -21,8 +21,6 @@ interface ChatApiResponse {
   tools_used: string[];
 }
 
-// Real call to backend/app/api/assistant.py's POST /assistant/chat.
-// Same signature as the Milestone 4 mock — nothing calling this needs to change.
 export async function askAssistant(
   question: string,
   context: { events: WarehouseEvent[]; selectedEvent?: WarehouseEvent }

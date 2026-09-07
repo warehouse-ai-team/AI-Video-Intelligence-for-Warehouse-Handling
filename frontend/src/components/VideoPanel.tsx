@@ -8,12 +8,12 @@ export interface VideoPanelHandle {
 
 interface VideoPanelProps {
   videoSrc?: string;
-  activeTimestamp?: string;
-  overlay?: React.ReactNode; // RiskOverlay slots in here from Dashboard
+  activeLabel?: string; // e.g. video_id + created_at, for display only
+  highlight?: React.ReactNode; // TimeRangeHighlight slots in below the player
 }
 
 const VideoPanel = forwardRef<VideoPanelHandle, VideoPanelProps>(
-  ({ videoSrc, activeTimestamp, overlay }, ref) => {
+  ({ videoSrc, activeLabel, highlight }, ref) => {
     const videoElRef = useRef<HTMLVideoElement>(null);
 
     useImperativeHandle(ref, () => ({
@@ -26,22 +26,21 @@ const VideoPanel = forwardRef<VideoPanelHandle, VideoPanelProps>(
     }));
 
     return (
-      <div className="relative flex h-full flex-col rounded-panel border border-border bg-surface">
+      <div className="flex h-full flex-col rounded-panel border border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <span className="text-sm font-medium text-text-primary">Video Feed</span>
-          {activeTimestamp && (
-            <span className="data-readout text-xs text-text-muted">{activeTimestamp}</span>
-          )}
+          {activeLabel && <span className="data-readout text-xs text-text-muted">{activeLabel}</span>}
         </div>
 
-        <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-base">
+        <div className="flex flex-1 items-center justify-center bg-base">
           {videoSrc ? (
             <video ref={videoElRef} src={videoSrc} controls className="h-full w-full object-contain" />
           ) : (
             <p className="text-sm text-text-muted">No video source connected yet</p>
           )}
-          {overlay}
         </div>
+
+        {highlight && <div className="border-t border-border p-2">{highlight}</div>}
       </div>
     );
   }

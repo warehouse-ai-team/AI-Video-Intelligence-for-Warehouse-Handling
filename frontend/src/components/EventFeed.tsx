@@ -9,15 +9,19 @@ interface EventFeedProps {
   onSelectEvent: (event: WarehouseEvent) => void;
 }
 
-function formatBehaviour(type: string) {
-  return type
+function formatBehaviour(behaviour: string) {
+  return behaviour
     .split('_')
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(' ');
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatSeconds(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 export default function EventFeed({ events, selectedEventId, onSelectEvent }: EventFeedProps) {
@@ -41,14 +45,14 @@ export default function EventFeed({ events, selectedEventId, onSelectEvent }: Ev
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text-primary">
-                  {formatBehaviour(event.behaviour_type)}
+                  {formatBehaviour(event.behaviour)}
                 </span>
                 <RiskBadge level={event.risk_level} />
               </div>
               <div className="data-readout flex items-center gap-2 text-xs text-text-muted">
-                <span>{formatTime(event.timestamp)}</span>
-                {event.bay && <span>· {event.bay}</span>}
-                <span>· {event.track_id}</span>
+                <span>{event.video_id}</span>
+                <span>· {formatSeconds(event.start_time)}</span>
+                <span>· score {event.risk_score}</span>
               </div>
             </button>
           ))

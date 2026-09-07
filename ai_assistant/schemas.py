@@ -2,50 +2,61 @@ from __future__ import annotations
 from typing import Optional, Literal
 from pydantic import BaseModel
 
-RiskLevel = Literal["low", "medium", "high", "critical"]
+RiskLevel = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
-BehaviourType = Literal[
-    "drop",
-    "drag",
-    "rough_handling",
-    "unstable_stacking",
-    "outside_designated_area",
-    "no_equipment_used",
-    "incorrect_pallet_placement",
-    "push_or_throw",
-    "unsafe_sequence",
-    "overloading",
+Behaviour = Literal[
+    "dropping", "throwing", "dragging", "rough_handling", "improper_stacking",
+    "unstable_stacking", "outside_designated_area", "strap_assisted_handling",
+    "stepping_on_carton", "unsafe_loading_sequence",
 ]
-
-
-class BoundingBox(BaseModel):
-    x: float
-    y: float
-    width: float
-    height: float
 
 
 class WarehouseEvent(BaseModel):
     event_id: str
     video_id: str
-    track_id: str
-    behaviour_type: BehaviourType
+    start_frame: Optional[int] = None
+    end_frame: Optional[int] = None
+    start_time: float
+    end_time: float
+    behaviour: Behaviour
     confidence: float
-    timestamp: str
-    video_time_seconds: float
-    bbox: BoundingBox
-    bay: Optional[str] = None
+    evidence: Optional[str] = None
+    reason: str
+    damage_status: Literal["potential_damage_risk"]
     risk_level: RiskLevel
-    risk_explanation: Optional[str] = None
+    risk_score: int
+    risk_explanation: str
+    created_at: str
+
+
+class RiskFactors(BaseModel):
+    behaviour: Behaviour
+    duration_seconds: float
+    repeat_frequency: int
+    base_score: int
+    confidence_factor: int
+    duration_factor: int
+    repeat_factor: int
 
 
 class RiskScore(BaseModel):
     event_id: str
-    score: float
+    score: int
     level: RiskLevel
+    factors: RiskFactors
 
 
-# --- Chat endpoint contract (what the frontend's ChatPanel will call) ---
+class Summary(BaseModel):
+    total_events: int
+    low_risk_events: int
+    medium_risk_events: int
+    high_risk_events: int
+    critical_risk_events: int
+    most_common_behaviour: Optional[str] = None
+    busiest_risky_video: Optional[str] = None
+
+
+# --- Chat endpoint contract (unchanged from before) ---
 
 class ChatRequest(BaseModel):
     question: str
@@ -54,6 +65,4 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    # Names of backend tools the assistant actually called, so the
-    # frontend/tests can verify grounding rather than trusting free text.
     tools_used: list[str] = []

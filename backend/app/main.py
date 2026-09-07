@@ -3,7 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+<<<<<<< Updated upstream
 from .api import events, summary
+=======
+from .api import events, summary, assistant
+>>>>>>> Stashed changes
 from .database import initialize_database
 
 
@@ -22,6 +26,10 @@ app.add_middleware(
 )
 app.include_router(events.router)
 app.include_router(summary.router)
+<<<<<<< Updated upstream
+=======
+app.include_router(assistant.router)
+>>>>>>> Stashed changes
 
 
 @app.get("/health", tags=["health"])

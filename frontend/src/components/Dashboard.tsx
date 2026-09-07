@@ -8,11 +8,11 @@ import EventFeed from './EventFeed';
 import Filters from './Filters';
 import IncidentReplay from './IncidentReplay';
 import RiskExplanation from './RiskExplanation';
-import RiskOverlay from './RiskOverlay';
+import TimeRangeHighlight from './TimeRangeHighlight';
 import ChatPanel from './ChatPanel';
 import ConnectionStatus from './ConnectionStatus';
 
-const MOCK_VIDEO_DURATION_SECONDS = 2400;
+const MOCK_VIDEO_DURATION_SECONDS = 120; // placeholder until real video metadata exists
 
 export default function Dashboard() {
   const [filters, setFilters] = useState<FilterState>({});
@@ -20,8 +20,8 @@ export default function Dashboard() {
   const [selectedEvent, setSelectedEvent] = useState<WarehouseEvent | undefined>();
   const videoRef = useRef<VideoPanelHandle>(null);
 
-  const bays = useMemo(
-    () => Array.from(new Set(events.map((e) => e.bay).filter(Boolean))) as string[],
+  const videoIds = useMemo(
+    () => Array.from(new Set(events.map((e) => e.video_id))),
     [events]
   );
 
@@ -29,12 +29,12 @@ export default function Dashboard() {
     if (!selectedEvent) return events;
     return events
       .filter((e) => e.video_id === selectedEvent.video_id)
-      .sort((a, b) => a.video_time_seconds - b.video_time_seconds);
+      .sort((a, b) => a.start_time - b.start_time);
   }, [events, selectedEvent]);
 
   function handleSelectEvent(event: WarehouseEvent) {
     setSelectedEvent(event);
-    videoRef.current?.seekTo(event.video_time_seconds);
+    videoRef.current?.seekTo(event.start_time);
   }
 
   return (
@@ -51,21 +51,20 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <Filters bays={bays} filters={filters} onChange={setFilters} />
+      <Filters videoIds={videoIds} filters={filters} onChange={setFilters} />
 
       <div className="grid flex-1 grid-cols-3 gap-3 overflow-hidden p-3">
         <div className="col-span-2 flex flex-col gap-3">
           <VideoPanel
             ref={videoRef}
-            activeTimestamp={
-              selectedEvent ? new Date(selectedEvent.timestamp).toLocaleString() : undefined
-            }
-            overlay={
+            activeLabel={selectedEvent ? `${selectedEvent.video_id} · ${selectedEvent.created_at}` : undefined}
+            highlight={
               selectedEvent && (
-                <RiskOverlay
-                  bbox={selectedEvent.bbox}
+                <TimeRangeHighlight
+                  behaviour={selectedEvent.behaviour}
                   riskLevel={selectedEvent.risk_level}
-                  label={selectedEvent.behaviour_type.replace(/_/g, ' ')}
+                  startTime={selectedEvent.start_time}
+                  endTime={selectedEvent.end_time}
                 />
               )
             }

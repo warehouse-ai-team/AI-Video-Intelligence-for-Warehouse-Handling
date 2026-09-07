@@ -13,9 +13,6 @@ interface UseEventsResult {
   refetch: () => void;
 }
 
-// Falls back to mock data (with a visible flag) rather than a blank
-// dashboard if the backend isn't reachable yet — useful until Day 4
-// integration is complete.
 export function useEvents(filters: FilterState): UseEventsResult {
   const [events, setEvents] = useState<WarehouseEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);

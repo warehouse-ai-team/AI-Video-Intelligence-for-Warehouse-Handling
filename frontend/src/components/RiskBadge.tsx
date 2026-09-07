@@ -1,10 +1,10 @@
 import { RiskLevel } from '@/lib/types';
 
 const RISK_STYLES: Record<RiskLevel, { label: string; dot: string; text: string }> = {
-  critical: { label: 'Critical', dot: 'bg-risk-critical', text: 'text-risk-critical' },
-  high: { label: 'High', dot: 'bg-risk-high', text: 'text-risk-high' },
-  medium: { label: 'Medium', dot: 'bg-risk-medium', text: 'text-risk-medium' },
-  low: { label: 'Low', dot: 'bg-risk-low', text: 'text-risk-low' },
+  CRITICAL: { label: 'Critical', dot: 'bg-risk-critical', text: 'text-risk-critical' },
+  HIGH: { label: 'High', dot: 'bg-risk-high', text: 'text-risk-high' },
+  MEDIUM: { label: 'Medium', dot: 'bg-risk-medium', text: 'text-risk-medium' },
+  LOW: { label: 'Low', dot: 'bg-risk-low', text: 'text-risk-low' },
 };
 
 export default function RiskBadge({ level }: { level: RiskLevel }) {
