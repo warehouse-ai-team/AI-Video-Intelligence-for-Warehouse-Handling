@@ -46,3 +46,7 @@ computer_vision/models/
 # OS
 .DS_Store
 Thumbs.db
+__pycache__/
+*.py[cod]
+.venv/
+backend/warehouse.db
